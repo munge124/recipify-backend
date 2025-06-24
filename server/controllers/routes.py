@@ -26,60 +26,46 @@ def init_routes(app):
     def recipes():
         if request.method == 'GET':
             recipes = Recipe.query.all()
-            return jsonify([{
-                'id': r.id,
-                'title': r.title,
-                'image_url': r.image_url
-            } for r in recipes]), 200
+            return jsonify([r.to_dict() for r in recipes]), 200
+
         elif request.method == 'POST':
             data = request.get_json()
+            ingredients = ",".join(data['ingredients']) if isinstance(data['ingredients'], list) else data['ingredients']
             new_recipe = Recipe(
                 title=data['title'],
-                ingredients=data['ingredients'],
+                ingredients=ingredients,
                 instructions=data['instructions'],
                 image_url=data.get('image_url', ''),
                 user_id=get_jwt_identity()
             )
             db.session.add(new_recipe)
             db.session.commit()
-            return jsonify({"message": "Recipe created"}), 201
+            return jsonify(new_recipe.to_dict()), 201
 
     @app.route('/api/recipes/<int:recipe_id>', methods=['GET', 'PUT', 'DELETE'])
     @jwt_required()
     def recipe_detail(recipe_id):
         recipe = Recipe.query.get_or_404(recipe_id)
-        
+
         if request.method == 'GET':
-            return jsonify({
-                'id': recipe.id,
-                'title': recipe.title,
-                'ingredients': recipe.ingredients,
-                'instructions': recipe.instructions,
-                'image_url': recipe.image_url,
-                'user_id': recipe.user_id,
-                'comments': [{
-                    'id': c.id,
-                    'text': c.text,
-                    'user_id': c.user_id
-                } for c in recipe.comments]
-            }), 200
-            
+            return jsonify(recipe.to_dict()), 200
+
         elif request.method == 'PUT':
             if recipe.user_id != get_jwt_identity():
                 return jsonify({"message": "Unauthorized"}), 403
-                
+
             data = request.get_json()
             recipe.title = data.get('title', recipe.title)
-            recipe.ingredients = data.get('ingredients', recipe.ingredients)
+            recipe.ingredients = ",".join(data['ingredients']) if isinstance(data['ingredients'], list) else data.get('ingredients', recipe.ingredients)
             recipe.instructions = data.get('instructions', recipe.instructions)
             recipe.image_url = data.get('image_url', recipe.image_url)
             db.session.commit()
-            return jsonify({"message": "Recipe updated"}), 200
-            
+            return jsonify(recipe.to_dict()), 200
+
         elif request.method == 'DELETE':
             if recipe.user_id != get_jwt_identity():
                 return jsonify({"message": "Unauthorized"}), 403
-                
+
             db.session.delete(recipe)
             db.session.commit()
             return jsonify({"message": "Recipe deleted"}), 200
@@ -96,7 +82,7 @@ def init_routes(app):
         )
         db.session.add(new_comment)
         db.session.commit()
-        return jsonify({"message": "Comment added"}), 201
+        return jsonify(new_comment.to_dict()), 201
 
     @app.route('/api/comments/<int:comment_id>', methods=['DELETE'])
     @jwt_required()
@@ -104,7 +90,7 @@ def init_routes(app):
         comment = Comment.query.get_or_404(comment_id)
         if comment.user_id != get_jwt_identity():
             return jsonify({"message": "Unauthorized"}), 403
-            
+
         db.session.delete(comment)
         db.session.commit()
         return jsonify({"message": "Comment deleted"}), 200
@@ -114,35 +100,20 @@ def init_routes(app):
     def search():
         query = request.args.get('q', '')
         recipes = Recipe.query.filter(Recipe.title.contains(query)).all()
-        return jsonify([{
-            'id': r.id,
-            'title': r.title
-        } for r in recipes]), 200
+        return jsonify([r.to_dict() for r in recipes]), 200
 
     # User Routes
     @app.route('/api/users', methods=['GET'])
     @jwt_required()
     def get_users():
         users = User.query.all()
-        return jsonify([{
-            'id': u.id,
-            'username': u.username,
-            'email': u.email
-        } for u in users]), 200
+        return jsonify([u.to_dict() for u in users]), 200
 
     @app.route('/api/users/<int:user_id>', methods=['GET'])
     @jwt_required()
     def get_user(user_id):
         user = User.query.get_or_404(user_id)
-        return jsonify({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'recipes': [{
-                'id': r.id,
-                'title': r.title
-            } for r in user.recipes]
-        }), 200
+        return jsonify(user.to_dict(include_recipes=True)), 200
 
     @app.route('/api/users/<int:user_id>', methods=['PUT'])
     @jwt_required()
@@ -150,17 +121,17 @@ def init_routes(app):
         current_user_id = get_jwt_identity()
         if current_user_id != user_id:
             return jsonify({"message": "Unauthorized"}), 403
-        
+
         user = User.query.get_or_404(user_id)
         data = request.get_json()
-        
+
         if 'username' in data:
             user.username = data['username']
         if 'email' in data:
             user.email = data['email']
         if 'password' in data:
             user.set_password(data['password'])
-        
+
         db.session.commit()
         return jsonify({"message": "User updated"}), 200
 
@@ -170,7 +141,7 @@ def init_routes(app):
         current_user_id = get_jwt_identity()
         if current_user_id != user_id:
             return jsonify({"message": "Unauthorized"}), 403
-        
+
         user = User.query.get_or_404(user_id)
         db.session.delete(user)
         db.session.commit()
