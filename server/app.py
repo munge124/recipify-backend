@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from server.config import Config
 from server.models import db
-from controllers.routes import init_routes
+from server.controllers.routes import init_routes
 
 def create_app():
     app = Flask(__name__)
@@ -18,6 +18,8 @@ def create_app():
         db.create_all()
 
     app.register_blueprint(init_routes)
+
+    
 
     return app
 
